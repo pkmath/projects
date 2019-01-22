@@ -1,0 +1,292 @@
+###Libraries needed######
+library(tidyverse)  
+library(rvest)    
+library(stringr)   
+library(rebus)     
+library(lubridate)
+library(httr)
+library(dplyr)
+library(V8)
+library(curl)
+###############################################################
+###############################################################
+
+############Create data frame to store data collected ################
+data=matrix(NA,nrow = 0,ncol = 26)
+data = as.data.frame(data)
+#Giving names to variables
+colnames(data)=c("id","Name","Top Notes","Middle Notes","Base Notes","Day","Night","Winter","Spring","Summer","Autumn","Like","Dislike","Love","Main Accords","Have it","Had it","Want it","Signature","Total Votes","Rating","Poor","Long Lasting","Soft","Enormus","Total Reviews")
+############
+
+
+
+  
+url <- "https://www.fragrantica.com/p/"      
+
+
+while ( (dim(data)[1]) < 20000) {
+  
+
+  start.time = Sys.time()
+  
+  Sys.sleep(120)
+
+for (i in ((dim(data)[1]+1) : (dim(data)[1]+2))){
+  
+webpage <- try(read_html(paste0(url,i)))
+if (is(webpage,"try-error") == "TRUE"){
+  Sys.sleep(430)
+next
+}
+##Notes
+y = html_nodes(webpage,".effect6")
+
+if (length(y)!=0){
+  
+#####perfume id ######
+data[i,1] = i
+  
+ ##Perfume name
+name = html_nodes(webpage,xpath = "/html/body/div[3]/div[3]/div/div/div[1]/div/div/div/div/h1/span")%>%html_text()
+data[i,2] = name
+  
+x = as.character(y[1])
+x <- unlist(strsplit(x, "\\ </p>\n<p><b>"))
+t = x[1]
+m = x[2]
+b = x[3]
+
+S=c("t","m","b")
+
+for (n in S) {
+        v = get(n)
+        v <- unlist(strsplit(v, "\\ "))
+        v = v[grep(pattern = "alt=" , v, ignore.case = T)]
+        v = str_remove(v,("alt=\""))
+        v = str_remove(v,("\""))
+        v = as.matrix(v)
+        assign(n, v)
+      }
+data[i,3]=list(list(t))
+data[i,4]=list(list(m))
+data[i,5]=list(list(b))
+
+#####metrics
+z = html_nodes(webpage,xpath = '//*[@id="clsloveD"]')
+x.love=as.character(z[1])
+x.love <- unlist(strsplit(x.love, "; "))
+x.love = x.love[grep(pattern = "height" , x.love, ignore.case = T)]
+x.love = str_remove(x.love,("height: "))
+x.love = str_remove(x.love,("px"))
+x.love=as.numeric(x.love)
+data[i,14]=x.love
+#########
+
+z = html_nodes(webpage,xpath = '//*[@id="clslikeD"]')
+x.like=as.character(z[1])
+x.like <- unlist(strsplit(x.like, "; "))
+x.like = x.like[grep(pattern = "height" , x.like, ignore.case = T)]
+x.like = str_remove(x.like,("height: "))
+x.like = str_remove(x.like,("px"))
+x.like=as.numeric(x.like)
+data[i,12]=x.like
+#########
+
+z = html_nodes(webpage,xpath = '//*[@id="clsdislikeD"]')
+x.dislike=as.character(z[1])
+x.dislike <- unlist(strsplit(x.dislike, "; "))
+x.dislike = x.dislike[grep(pattern = "height" , x.dislike, ignore.case = T)]
+x.dislike = str_remove(x.dislike,("height: "))
+x.dislike = str_remove(x.dislike,("px"))
+x.dislike=as.numeric(x.dislike)
+data[i,13]=x.dislike
+#########
+
+z = html_nodes(webpage,xpath = '//*[@id="clswinterD"]')
+x.winter = as.character(z[1])
+x.winter <- unlist(strsplit(x.winter, "; "))
+x.winter = x.winter[grep(pattern = "height" , x.winter, ignore.case = T)]
+x.winter = str_remove(x.winter,("height: "))
+x.winter = str_remove(x.winter,("px"))
+x.winter = as.numeric(x.winter)
+data[i,8]=x.winter
+#########
+
+z = html_nodes(webpage,xpath = '//*[@id="clsspringD"]')
+x.spring = as.character(z[1])
+x.spring <- unlist(strsplit(x.spring, "; "))
+x.spring = x.spring[grep(pattern = "height" , x.spring, ignore.case = T)]
+x.spring = str_remove(x.spring,("height: "))
+x.spring = str_remove(x.spring,("px"))
+x.spring = as.numeric(x.spring)
+data[i,9]=x.spring
+########
+
+z = html_nodes(webpage,xpath = '//*[@id="clssummerD"]')
+x.summer = as.character(z[1])
+x.summer <- unlist(strsplit(x.summer, "; "))
+x.summer = x.summer[grep(pattern = "height" , x.summer, ignore.case = T)]
+x.summer = str_remove(x.summer,("height: "))
+x.summer = str_remove(x.summer,("px"))
+x.summer = as.numeric(x.summer)
+data[i,10]=x.summer
+########
+
+z = html_nodes(webpage,xpath = '//*[@id="clsautumnD"]')
+x.autumn = as.character(z[1])
+x.autumn <- unlist(strsplit(x.autumn, "; "))
+x.autumn = x.autumn[grep(pattern = "height" ,x.autumn, ignore.case = T)]
+x.autumn = str_remove(x.autumn,("height: "))
+x.autumn = str_remove(x.autumn,("px"))
+x.autumn = as.numeric(x.autumn)
+data[i,11]=x.autumn
+########
+
+z = html_nodes(webpage,xpath = '//*[@id="clsdayD"]')
+x.day = as.character(z[1])
+x.day <- unlist(strsplit(x.day, "; "))
+x.day = x.day[grep(pattern = "height" ,x.day, ignore.case = T)]
+x.day = str_remove(x.day,("height: "))
+x.day = str_remove(x.day,("px"))
+x.day = as.numeric(x.day)
+data[i,6]=x.day
+########
+
+z = html_nodes(webpage,xpath = '//*[@id="clsnightD"]')
+x.night = as.character(z[1])
+x.night <- unlist(strsplit(x.night, "; "))
+x.night = x.night[grep(pattern = "height" ,x.night, ignore.case = T)]
+x.night = str_remove(x.night,("height: "))
+x.night = str_remove(x.night,("px"))
+x.night = as.numeric(x.night)
+data[i,7]=x.night
+
+###################################################################
+# GET THE MAIN ACCORDS
+###################################################################
+
+
+a1 = html_nodes(webpage,xpath = "/html/body/div[3]/div[3]/div/div/div[1]/div/div/div/div/div[2]/div[1]/div[2]/span")%>% html_text()
+a2 = html_nodes(webpage,xpath = "/html/body/div[3]/div[3]/div/div/div[1]/div/div/div/div/div[2]/div[1]/div[4]/span")%>% html_text()
+a3 = html_nodes(webpage,xpath = "/html/body/div[3]/div[3]/div/div/div[1]/div/div/div/div/div[2]/div[1]/div[6]/span")%>% html_text()
+a4 = html_nodes(webpage,xpath = "/html/body/div[3]/div[3]/div/div/div[1]/div/div/div/div/div[2]/div[1]/div[8]/span")%>% html_text()
+a5 = html_nodes(webpage,xpath = "/html/body/div[3]/div[3]/div/div/div[1]/div/div/div/div/div[2]/div[1]/div[10]/span")%>% html_text()
+
+temp<- c(a1,a2,a3,a4,a5)
+data[i,15] = list(list(temp))
+
+##### popularities ########
+v = webpage%>%html_nodes(css  = "#mainpicbox > p:nth-child(5)")%>% html_text()
+
+v <- unlist(strsplit(v, "  "))
+
+have.it = v[grep(pattern = "have" , v, ignore.case = T)]
+matches <- regmatches(have.it, gregexpr("[[:digit:]]+", have.it))
+if (length(matches)==0){
+  data[i,16] = 0
+} else {
+have.it = as.numeric(unlist(matches))
+data[i,16]=have.it
+}
+
+had.it = v[grep(pattern = "had" , v, ignore.case = T)]
+matches <- regmatches(had.it, gregexpr("[[:digit:]]+", had.it))
+if (length(matches)==0){
+  data[i,17] = 0
+} else {
+had.it = as.numeric(unlist(matches))
+data[i,17]=had.it
+}
+want.it = v[grep(pattern = "want" , v, ignore.case = T)]
+matches <- regmatches(want.it, gregexpr("[[:digit:]]+", want.it))
+if (length(matches)==0){
+  data[i,18] = 0
+} else {
+want.it = as.numeric(unlist(matches))
+data[i,18]=want.it
+}
+sign.it = v[grep(pattern = "signature" , v, ignore.case = T)]
+matches <- regmatches(sign.it, gregexpr("[[:digit:]]+", sign.it))
+if (length(matches)==0){
+  data[i,19] = 0
+} else {
+sign.it = as.numeric(unlist(matches))
+data[i,19]=sign.it
+}
+#### Total votes #######
+
+l = webpage%>%html_nodes(css  = "#resultsWrapper > div:nth-child(1) > div:nth-child(1)")%>%html_text()
+l = str_remove(l,"Total people voted: ")
+temp = as.numeric(l)
+if (length(temp)==0){
+  data[i,20] = 0
+} else {
+data[i,20] = temp
+}
+### Rating of perfume #########
+
+p = webpage%>%html_nodes(css  = "#col1 > div:nth-child(1) > div:nth-child(1) > div:nth-child(9) > p:nth-child(1) > span:nth-child(1)")%>%html_text()
+temp = as.numeric(p)
+if (length(temp)==0){
+  data[i,21] = 0
+} else {
+data[i,21]=temp
+}
+####Longetivity or How it lasts #########
+
+p = webpage%>%html_nodes(css  = ".long")%>%html_table()
+tempo = matrix(unlist(p), ncol = 3)
+temp = tempo[,2]
+temp = as.data.frame(temp)
+temp[,1] = as.numeric(levels(temp[,1])[temp[,1]])
+temp[1,] = temp[1,]+temp[2,]+temp[3,]
+temp[5,] = temp[5,] + temp[4,]
+temp = temp[-(2:4),]
+data[i,22]=temp[1]
+data[i,23]=temp[2]
+
+####Sillage or how far it goes #####
+p = webpage%>%html_nodes(css  = "table.voteLS:nth-child(1)")%>%html_table()
+tempo = matrix(unlist(p), ncol = 3)
+temp = tempo[,2]
+
+temp = as.data.frame(temp)
+temp[,1] = as.numeric(levels(temp[,1])[temp[,1]])
+
+temp[1,] = temp[1,]+ temp[2,]
+temp[4,] = temp[4,]+ temp[3,]
+temp = temp[-(2:3),]
+data[i,24]=temp[1]
+data[i,25]=temp[2]
+
+##### Total reviews or how many felt like writing something ######
+
+p = webpage%>%html_nodes(".pwq")
+temp = length(p)
+data[i,26]= temp
+
+} else {
+  data[i,] = NA
+  
+}
+
+}
+  
+end.time = Sys.time()
+print(end.time - start.time)
+print(dim(data))
+
+}
+
+
+#####saving process ##########
+o = data
+o$Top.Notes = as.character(o$Top.Notes)
+o$Middle.Notes= as.character(o$Middle.Notes)
+o$Base.Notes = as.character(o$Base.Notes)
+o$Main.Accords = as.character(o$Main.Accords)
+
+write.table(o, file ="C:/Users/perfumes.txt",sep = "\t")
+
+##load data frame 
+r = read.table("C:/Users/perfumes.txt",header = TRUE,stringsAsFactors = FALSE)
