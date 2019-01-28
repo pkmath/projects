@@ -1,0 +1,590 @@
+
+library(class)
+library(factoextra)
+library("corrplot")
+library(MASS)
+library("plotrix")
+library(mice)
+library(readxl)
+datatest1 <- read_excel("C:/Users/Notis/project/data.xlsx", col_types = c("numeric","numeric", "numeric", "numeric", "numeric", 
+"numeric", "numeric", "numeric", "numeric","numeric", "numeric", "numeric", "numeric", "text", 
+"text"))
+
+
+summary(datatest1)
+datatest1 = datatest1[,-1]
+datatest = as.data.frame(datatest1)
+
+####change density wrong values with NA in order to predict all the NA later #######
+
+for (i in 1:nrow(datatest)){
+  if (datatest[i,8] > 1){
+    datatest[i,8] = NA
+  }
+}
+####change alcohol wrong values with NA in order to predict all the NA later #######
+for (i in 1:nrow(datatest)){
+  if (datatest[i,11] > 15){
+    datatest[i,11] = NA
+  }
+}
+
+#### change volatile wrong values with NAs
+
+for (i in 1:nrow(datatest)){
+  if (datatest[i,2] > 300) {
+    datatest[i,2] = NA
+  }
+}
+
+
+
+
+
+
+
+###### imputation of missing values ############
+
+imp.mean.datatest <- mice(datatest,m=1,method = "mean",maxit = 1)
+imp.mean.datatest.data <- complete(imp.mean.datatest)
+summary(imp.mean.datatest.data)
+
+###########
+
+
+#We compute the positions of the NAs for the column "Taste"
+
+na_positions = which(imp.mean.datatest.data[,14]=="NA")
+
+#For doing the KNN we will have into account all the quantitative 
+#variables except the column "X" which is the counter of the samples
+
+datafixed2=as.matrix(imp.mean.datatest.data[,1:12])
+
+#This loop takes the rows of "datafixed2" which there have been NAs
+
+matrix_na = matrix(0,ncol =ncol(datafixed2),nrow = length(na_positions))
+
+for(i in 1:length(na_positions)){
+  index=na_positions[i]
+  matrix_na[i,]=datafixed2[index,]
+}
+
+# As we are going to use the KNN, also, we need remove the rows of
+# the datafixed because if we compares the same points the distance 
+# is going to be 0 
+
+datafixed2 = datafixed2[-na_positions,]
+
+#It is necessary to convert the column "Taste" of the data frame 
+#"datafixed" as factor, but it is necesary to delete the the rows
+#of the NAs in the variable "datafixed", because we do not want 
+# "NA" as level
+imp.mean.datatest.data <- as.data.frame(imp.mean.datatest.data)
+factor_taste = as.factor(imp.mean.datatest.data[-na_positions,14])
+levels_taste=levels(factor_taste) #without NAs
+
+#But as the KNN does not work with variables of type factor, we need
+#to convert it as a integer 
+
+integer_taste = as.integer(factor_taste)
+
+#Now we apply the KNN algorithm 
+
+taste_na = NULL
+
+#In this loop we analyse each row which contains NA and we assingn
+# the type of taste using the KNN algorithm. After, we save it in 
+#vector 
+
+for(i in 1:nrow(matrix_na)){
+  taste_na[i]= knn(datafixed2,matrix_na[i,],integer_taste)
+}
+
+int_to_chara= vector(mode="character",length = length(taste_na))
+
+for(i in 1:length(levels_taste)){
+  positions_taste = which(taste_na==i)
+  int_to_chara[positions_taste]=levels_taste[i] 
+}
+int_to_chara
+
+imp.mean.datatest.data[na_positions,14]= int_to_chara
+
+
+#####deleting the 4 and 5 tastes because there are not enough to test them
+table(imp.mean.datatest.data[,14])
+## we see that Low acid and Very low acid categories have a very small number of entries so we will delete them
+
+v4 =which(imp.mean.datatest.data[,14]== "Low acid")
+imp.mean.datatest.data = imp.mean.datatest.data[-v4,]
+
+v5 =which(imp.mean.datatest.data[,14]== "Very low acid")
+imp.mean.datatest.data = imp.mean.datatest.data[-v5,]
+##################save the new data set as a file ######
+# write.table(imp.mean.datatest.data, "C:/Users/Notis/Desktop/MSc Carlos III/multivariate Analysis/project/newwines.txt", sep="\t")
+
+
+##################################
+
+# We define the data matrix with the quantitative variables and the indicator vector with the qualitative variable (Private)
+
+M <- imp.mean.datatest.data[,1:12]
+head(M)
+
+N <- factor(imp.mean.datatest.data[,13])
+head(N)
+table(N)
+
+L <- factor(imp.mean.datatest.data[,14])
+head(L)
+table(L)
+##################################################################################################################
+# Define sample size and the dimension
+
+n.M <- nrow(M)
+n.M
+p.M <- ncol(M)
+p.M
+
+
+##################################################################################################################
+# Plot the original variables
+
+colors.ML <- c("deepskyblue2","firebrick2","chartreuse")[L]
+
+parcoord(M,col=colors.ML,var.label=TRUE)
+
+
+colors.M <- c("firebrick2","deepskyblue2")[N]
+
+
+parcoord(M,col=colors.M,var.label=TRUE)
+
+#### Taking Pcs for all the data 
+
+PCS.M <- prcomp(M,scale=TRUE)
+
+# Make a plot of the first two PCs of all the data set
+
+plot(PCS.M$x[,1:2],pch=19,col=colors.M)
+
+#### HERE we have that the relationship between the first and the second PC is different in terms of variate
+#### That means that we will separate the data into two subgroups, white and red and check if need further separation 
+### depending on taste and finally we will calculate the outliers of each subroup
+
+###############
+# Take the PCs of the white subgroup
+
+M.white <- M[N=="white",]
+
+n.M.white <- nrow(M.white)
+n.M.white
+p.M.white <- ncol(M.white)
+p.M.white
+
+PCS.M.white <- prcomp(M.white,scale=TRUE)
+
+
+colors.M.white <- c("deepskyblue2","firebrick2","chartreuse")[L]
+parcoord(M.white,col=colors.M.white,var.label=TRUE)
+
+### Plot the first 2 Pcs of white wine
+plot(PCS.M.white$x[,1:2],pch=19,col=colors.M.white)
+
+# Here the relationship between the first and the second PC is not different in terms of the taste
+# That means that we are going to find the outliers from all the subgroup of white wines. There is no need to divide
+# this subgroub to more subgroups
+
+##################################################################################################################
+# Interpretation of the first PC: Weights for the first PC of white wine
+
+plot(1:p.M.white,PCS.M.white$rotation[,1],pch=19,col="deepskyblue2",main="Weights for the first PC")
+abline(h=0)
+text(1:p.M.white,PCS.M.white$rotation[,1],labels=colnames(M.white),pos=1,col="firebrick2",cex=0.5)
+
+## Here we can see that the most important weights for the 1st PC is residual_sugar, total.sulfur.dioxide, density and alcohol
+
+##########
+# Interpretation of the second PC: Weights for the second PC of white wine
+
+plot(1:p.M.white,PCS.M.white$rotation[,2],pch=19,col="deepskyblue2",main="Weights for the second PC")
+abline(h=0)
+text(1:p.M.white,PCS.M.white$rotation[,2],labels=colnames(M.white),pos=1,col="firebrick2",cex=0.5)
+## Here the most importat weights are Fixed acidity and pH.
+# That means that the second Pc is somehow related with the acidity of the wine
+
+
+##### important variables for the two first Pcs 
+
+plot(PCS.M.white$rotation[,1:2],pch=19,col="deepskyblue2",main="Weights for the first two PCs")
+abline(h=0,v=0)
+text(PCS.M.white$rotation[,1:2],labels=colnames(M.white),pos=1,col="firebrick2",cex=0.5)
+draw.circle(0,0,0.3,border="green2",lwd=3)
+##Outside the circle we can see the important viariables for the first two Pcs 
+## 
+
+###### The PCs with mportant weights ###### 
+
+corrplot(cor(M.white,PCS.M.white$x),is.corr=T)
+
+###### sCreenplot pCs with 12 variables
+fviz_eig(PCS.M.white,ncp=12,addlabels=T,barfill="deepskyblue2",barcolor="deepskyblue4")
+
+## How many Pcs we need to take 
+
+get_eigenvalue(PCS.M.white)
+
+
+
+eval.M.white <- PCS.M.white$sdev^2
+mean(eval.M.white)
+
+# The number of eigenvalues larger than the mean of them is 
+
+sum(eval.M.white>mean(eval.M.white))
+
+## WE GET AS RESULT 4 SO we are gonna take the first 4 PCs
+
+# In this case, we reduce the dimension of the data set from 12 to 4
+
+
+
+#####################Detect outliers with the PCs#########################
+
+# Compute robust estimates of the covariance matrix
+
+rob.CM.white <- diag(apply(PCS.M.white$x[,1:4],2,mad)^2)
+rob.CM.white
+
+# Compute robust squared Mahalanobis distances for the PCs of white wines
+
+rob.mah.M.white <- mahalanobis(PCS.M.white$x[,1:4],rep(0,4),rob.CM.white)
+
+
+# Sort the robust Mahalanobis distances in increasing order
+
+sort.rob.mah.M.white <- sort(rob.mah.M.white,index.return=TRUE)$x
+
+# Plot the sorted robust distances
+
+plot(sort.rob.mah.M.white,pch=20,col="deepskyblue2",xlab="",ylab="",main="Robust Mahalanobis distances for the PCs of white wines")
+
+######Determine outliers with the False Discovery Rate (FDR)
+
+# Obtain the p-values of each college assuming Gaussianity
+
+p.values.white <- 1 - pchisq(rob.mah.M.white,4)
+p.values.white
+
+# Sort them in increasing order
+
+sort.p.values.white <- sort(p.values.white,index.return=TRUE)
+sort.p.values.white$x
+
+# Which are outliers?
+
+which(sort.p.values.white$x < ((1:n.M.white)/n.M.white*0.01))
+
+###plot outliers
+
+# Position of the outliers in the data set
+
+pos.outliers.white <- sort.p.values.white$ix[1:43]
+
+outliers.white<- rep(1,n.M.white)
+outliers.white[pos.outliers.white] <- 2
+colors.outliers.white <- c("deepskyblue2","firebrick2")[outliers.white]
+pairs(PCS.M.white$x[,1:4],col=colors.outliers.white,pch=19,main="The first 4 PCs with outliers")
+
+###Now we wil test the subgroup of red wines
+
+####### Take the PCs of the red subgroup #########################
+
+M.red <- M[N=="red",]
+
+n.M.red <- nrow(M.red)
+n.M.red
+p.M.red <- ncol(M.red)
+p.M.red
+
+PCS.M.red <- prcomp(M.red,scale=TRUE)
+
+
+colors.M.red <- c("deepskyblue2","firebrick2","chartreuse", "chocolate1","blue4")[L]
+parcoord(M.red,col=colors.M.red,var.label=TRUE)
+
+plot(PCS.M.red$x[,1:2],pch=19,col=colors.M.red)
+
+## we see here that the relationship between the first and the second PC is different in terms of the taste
+## We will divide the red wines to three subgroup and the we will calculate the PCs of each subgroup
+#in order to find the outliers of each subgroup
+
+####### Take the PCs of the red subgroup balanced
+
+M.red.Balanced <- M[which(L=="Balanced" & N == "red"),]
+
+n.M.red.Balanced <- nrow(M.red.Balanced)
+n.M.red.Balanced
+p.M.red.Balanced <- ncol(M.red.Balanced)
+p.M.red.Balanced
+
+PCS.M.red.Balanced <- prcomp(M.red.Balanced,scale=TRUE)
+
+
+## How many Pcs we need to take 
+
+get_eigenvalue(PCS.M.red.Balanced)
+
+
+
+eval.M.red.Balanced <- PCS.M.red.Balanced$sdev^2
+mean(eval.M.red.Balanced)
+
+# The number of eigenvalues larger than the mean of them is 
+
+sum(eval.M.red.Balanced>mean(eval.M.red.Balanced))
+
+## WE GET AS RESULT 4 SO we are gonna take the first 4 PCs
+
+# In this case, we reduce the dimension of the data set from 12 to 4
+
+
+##### interprentetion of PCS########### 
+
+corrplot(cor(M.red.Balanced,PCS.M.red.Balanced$x),is.corr=T)
+
+## we can see that the first PC is high related with fixed.acidity and density 
+## the other PCs are not very related with the variables
+
+#####################Detect outliers with the PCs#########################
+
+# Compute robust estimates of the covariance matrix
+
+rob.CM.red.Balanced <- diag(apply(PCS.M.red.Balanced$x[,1:4],2,mad)^2)
+rob.CM.red.Balanced
+
+# Compute robust squared Mahalanobis distances for the PCs of white wines
+
+rob.mah.M.red.Balanced<- mahalanobis(PCS.M.red.Balanced$x[,1:4],rep(0,4),rob.CM.red.Balanced)
+
+
+# Sort the robust Mahalanobis distances in increasing order
+
+sort.rob.mah.M.red.Balanced <- sort(rob.mah.M.red.Balanced,index.return=TRUE)$x
+
+# Plot the sorted robust distances
+
+plot(sort.rob.mah.M.red.Balanced,pch=20,col="deepskyblue2",xlab="",ylab="",main="Robust Mahalanobis distances for the PCs of red balanced wines")
+
+######Determine outliers with the False Discovery Rate (FDR)
+
+# Obtain the p-values of each college assuming Gaussianity
+
+p.values.red.Balanced <- 1 - pchisq(rob.mah.M.red.Balanced,4)
+p.values.red.Balanced
+
+# Sort them in increasing order
+
+sort.p.values.red.Balanced<- sort(p.values.red.Balanced,index.return=TRUE)
+sort.p.values.red.Balanced$x
+
+# Which are outliers?
+
+which(sort.p.values.red.Balanced$x < ((1:n.M.red.Balanced)/n.M.red.Balanced*0.01))
+
+###plot outliers
+
+# Position of the outliers in the data set
+
+pos.outliers.red.Balanced <- sort.p.values.red.Balanced$ix[1:2]
+
+outliers.red.Balanced<- rep(1,n.M.red.Balanced)
+outliers.red.Balanced[pos.outliers.red.Balanced] <- 2
+colors.outliers.red.Balanced <- c("deepskyblue2","firebrick2")[outliers.red.Balanced]
+pairs(PCS.M.red.Balanced$x[,1:4],col=colors.outliers.red.Balanced,pch=19,main="The first 4 PCs with outliers")
+
+####### Take the PCs of the red subgroup Light Bodied "2" #########################
+
+M.red.Light <- M[which(N=="red" & L=="Light-Bodied"),]
+dim(M.red.Light)
+
+n.M.red.Light <- nrow(M.red.Light)
+n.M.red.Light
+p.M.red.Light<- ncol(M.red.Light)
+p.M.red.Light
+
+PCS.M.red.Light <- prcomp(M.red.Light,scale=TRUE)
+
+
+## How many Pcs we need to take 
+
+get_eigenvalue(PCS.M.red.Light)
+
+
+
+eval.M.red.Light <- PCS.M.red.Light$sdev^2
+mean(eval.M.red.Light)
+
+# The number of eigenvalues larger than the mean of them is 
+
+sum(eval.M.red.Light>mean(eval.M.red.Light))
+
+## WE GET AS RESULT 4 SO we are gonna take the first 4 PCs
+
+# In this case, we reduce the dimension of the data set from 12 to 4
+
+##########interprentetion of PCS #################
+
+corrplot(cor(M.red.Light,PCS.M.red.Light$x),is.corr=T)
+
+
+## Here we can see that the first Pc is related with fixed acidity, citric.acid and volatile.acidity, the sencond with density and alcohol
+## the third is related with free.sulfur.dioxide  
+## and the 5th PC is related with residual.sugar
+
+#####################Detect outliers with the PCs#########################
+
+# Compute robust estimates of the covariance matrix
+
+rob.CM.red.Light <- diag(apply(PCS.M.red.Light$x[,1:4],2,mad)^2)
+rob.CM.red.Light
+
+# Compute robust squared Mahalanobis distances for the PCs of white wines
+
+rob.mah.M.red.Light<- mahalanobis(PCS.M.red.Light$x[,1:4],rep(0,4),rob.CM.red.Light)
+
+
+# Sort the robust Mahalanobis distances in increasing order
+
+sort.rob.mah.M.red.Light <- sort(rob.mah.M.red.Light,index.return=TRUE)$x
+
+# Plot the sorted robust distances
+
+plot(sort.rob.mah.M.red.Light,pch=20,col="deepskyblue2",xlab="",ylab="",main="Robust Mahalanobis distances for the PCs of red Light wines")
+
+######Determine outliers with the False Discovery Rate (FDR)
+
+# Obtain the p-values of each college assuming Gaussianity
+
+p.values.red.Light<- 1 - pchisq(rob.mah.M.red.Light,4)
+p.values.red.Light
+
+# Sort them in increasing order
+
+sort.p.values.red.Light<- sort(p.values.red.Light,index.return=TRUE)
+sort.p.values.red.Light$x
+
+# Which are outliers?
+
+which(sort.p.values.red.Light$x < ((1:n.M.red.Light)/n.M.red.Light*0.01))
+
+###plot outliers
+
+# Position of the outliers in the data set
+
+pos.outliers.red.Light <- sort.p.values.red.Light$ix[1:30]
+
+outliers.red.Light<- rep(1,n.M.red.Light)
+outliers.red.Light[pos.outliers.red.Light] <- 2
+colors.outliers.red.Light <- c("deepskyblue2","firebrick2")[outliers.red.Light]
+pairs(PCS.M.red.Light$x[,1:4],col=colors.outliers.red.Light,pch=19,main="The first 4 PCs with outliers")
+
+
+############## PC analysis for the Red wines subgroup sweet ########################
+
+M.red.Sweet <- M[which(N=="red" & L=="Sweet"),]
+dim(M.red.Sweet)
+
+n.M.red.Sweet <- nrow(M.red.Sweet)
+n.M.red.Sweet
+p.M.red.Sweet<- ncol(M.red.Sweet)
+p.M.red.Sweet
+
+PCS.M.red.Sweet <- prcomp(M.red.Sweet,scale=TRUE)
+
+
+## How many Pcs we need to take 
+
+get_eigenvalue(PCS.M.red.Sweet)
+
+
+
+eval.M.red.Sweet <- PCS.M.red.Sweet$sdev^2
+mean(eval.M.red.Sweet)
+
+# The number of eigenvalues larger than the mean of them is 
+
+sum(eval.M.red.Sweet>mean(eval.M.red.Sweet))
+
+## WE GET AS RESULT 5 SO we are gonna take the first 5 PCs
+
+# In this case, we reduce the dimension of the data set from 12 to 5
+
+############### interprentetion of PCs ##################
+
+corrplot(cor(M.red.Sweet,PCS.M.red.Sweet$x),is.corr=T)
+
+## Here the 1st Pc is related with fixed.acidity,residual.sugar, chlorides and alcohol
+## the second has relationship with total.sulfur.dioxide and free.sulfur.dioxide
+
+
+
+
+#####################Detect outliers with the PCs#########################
+
+# Compute robust estimates of the covariance matrix
+
+rob.CM.red.Sweet <- diag(apply(PCS.M.red.Sweet$x[,1:5],2,mad)^2)
+rob.CM.red.Sweet
+
+# Compute robust squared Mahalanobis distances for the PCs of white wines
+
+rob.mah.M.red.Sweet<- mahalanobis(PCS.M.red.Sweet$x[,1:5],rep(0,5),rob.CM.red.Sweet)
+
+
+# Sort the robust Mahalanobis distances in increasing order
+
+sort.rob.mah.M.red.Sweet <- sort(rob.mah.M.red.Sweet,index.return=TRUE)$x
+
+# Plot the sorted robust distances
+
+plot(sort.rob.mah.M.red.Sweet,pch=20,col="deepskyblue2",xlab="",ylab="",main="Robust Mahalanobis distances for the PCs of red Sweet wines")
+
+######Determine outliers with the False Discovery Rate (FDR)
+
+# Obtain the p-values of each college assuming Gaussianity
+
+p.values.red.Sweet<- 1 - pchisq(rob.mah.M.red.Sweet,5)
+p.values.red.Sweet
+
+# Sort them in increasing order
+
+sort.p.values.red.Sweet<- sort(p.values.red.Sweet,index.return=TRUE)
+sort.p.values.red.Sweet$x
+
+# Which are outliers?
+
+which(sort.p.values.red.Sweet$x < ((1:n.M.red.Sweet)/n.M.red.Sweet*0.01))
+
+###plot outliers
+
+# Position of the outliers in the data set
+
+pos.outliers.red.Sweet <- sort.p.values.red.Sweet$ix[1:7]
+
+outliers.red.Sweet<- rep(1,n.M.red.Sweet)
+outliers.red.Sweet[pos.outliers.red.Sweet] <- 2
+colors.outliers.red.Sweet <- c("deepskyblue2","firebrick2")[outliers.red.Sweet]
+pairs(PCS.M.red.Sweet$x[,1:5],col=colors.outliers.red.Sweet,pch=19,main="The first 4 PCs with outliers")
+
+
+
+
+
+
+
+
+
+
+
